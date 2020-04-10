@@ -16,7 +16,7 @@ Distributed as-is; no warranty is given.
 // #include "Arduino.h"
 #include "MCP7940.h"
 
-#define RETRO_ON_MANUAL //Debug include 
+// #define RETRO_ON_MANUAL //Debug include 
 
 
 MCP7940::MCP7940()
@@ -24,6 +24,11 @@ MCP7940::MCP7940()
 
 }
 
+/**
+ * Initializes the system, starts up I2C and turns on the oscilator and sets up to use battery backup 
+ *
+ * @return the I2C status value (if any error occours) or if oscilator does not start properly 
+ */
 int MCP7940::Begin(void)
 {
 	Wire.begin();
@@ -36,8 +41,8 @@ int MCP7940::Begin(void)
 	SetBit(TimeRegs::WeekDay, 3); //Turn backup battery enable
 
 	bool OscError = StartOsc();
-	Serial.print("Oscillator State:"); //DEBUG!
-	Serial.println(OscError); //DEBUG! 
+	// Serial.print("Oscillator State:"); //DEBUG!
+	// Serial.println(OscError); //DEBUG! 
 	// Serial.print("Reg Sates:"); //DEBUG!
 	// Serial.print(ReadByte(Control), HEX); //DEBUG!
 	// Serial.print(","); //DEBUG!
@@ -46,6 +51,18 @@ int MCP7940::Begin(void)
 	// Serial.println(ReadByte(TimeRegs::WeekDay), HEX); //DEBUG!
 }
 
+/**
+ * Set the time of the device
+ *
+ * @param Year, the current year, either in 2 digit form, or 4 digit, automatically adjusts (until year 2100)
+ * @param Month, the current month (1~12)
+ * @param Day, the current day of the month(1~31)
+ * @param DoW, the day of the week, staring on Monday (1~7)
+ * @param Hour, the current hour (0~24)
+ * @param Min, the current minute (0~60)
+ * @param Sec, the current second (0~60)
+ * @return the I2C status value (if any error occours)
+ */
 int MCP7940::SetTime(int Year, int Month, int Day, int DoW, int Hour, int Min, int Sec)
 {
 	if(Year > 999) {
@@ -89,11 +106,29 @@ int MCP7940::SetTime(int Year, int Month, int Day, int DoW, int Hour, int Min, i
   //Read back time to test result of write??
 }
 
+/**
+ * Set the time of the device (DoW ommited)
+ *
+ * @param Year, the current year, either in 2 digit form, or 4 digit, automatically adjusts (until year 2100)
+ * @param Month, the current month (1~12)
+ * @param Day, the current day of the month(1~31)
+ * @param DoW, the day of the week, staring on Monday (1~7)
+ * @param Hour, the current hour (0~24)
+ * @param Min, the current minute (0~60)
+ * @param Sec, the current second (0~60)
+ * @return the I2C status value (if any error occours)
+ */
 int MCP7940::SetTime(int Year, int Month, int Day, int Hour, int Min, int Sec)
 {
 	return SetTime(Year, Month, Day, 0, Hour, Min, Sec); //Pass to full funciton, force WeekDay to zero 
 }
 
+/**
+ * Return current time from device, formatted
+ *
+ * @param Mode, used to set which value is returned 
+ * @return String of current time/date in the requested format 
+ */
 String MCP7940::GetTime(int mode)
 {
 	String temp;
@@ -207,7 +242,7 @@ String MCP7940::GetTime(int mode)
 	  	return(temp);
 	}
 
-	if(mode == 8601)
+	if(mode == 3) //Return in ISO 8601 standard (UTC)
 	{
 		temp.concat(TimeDateStr[0]);
 		temp.concat("-");
@@ -251,37 +286,35 @@ String MCP7940::GetTime(int mode)
 	else return("Invalid Input");
 }
 
+/**
+ * Return current time of the device, Unix time
+ *
+ * @param Mode, used to set which value is returned 
+ * @return unsigned long of current Unix timestamp
+ */
 unsigned long MCP7940::GetTimeUnix()
 {
 
 }
 
-// float MCP7940::GetTemp()
-// {
-// 	float Temp = 0;
-// 	Wire.beginTransmission(ADR);
-// 	Wire.write(0x11); //Read from reg 0x11
-// 	Wire.endTransmission();
-
-// 	Wire.requestFrom(ADR, 2);
-// 	uint8_t TempHigh = Wire.read(); //Get high reg of temp data
-// 	uint8_t TempLow = Wire.read();	//Get low reg of temp data
-
-// 	if(bitRead(TempHigh, 7) == 1) {
-// 	TempHigh = (~TempHigh) + 1;  //Take 2s complement of whole temp value
-// 	Temp = -1.0*float(TempHigh + 0.25*float(TempLow >> 6)); //Temp = -(Whole + 2^-2 x Frac)
-// 	}
-// 	else Temp = float(TempHigh) + 0.25*float(TempLow >> 6);	//Temp = (Whole + 2^-2 x Frac)
-
-// 	return Temp; 
-// }
-
+/**
+ * Return specific time date value to not be forced to parse string 
+ *
+ * @param n, which value to be returned (0:Year, 1:Month, 2:Day, 3:Hour, 4:Minute, 5:Second)
+ * @return int, the desired time date value in numerical form 
+ */
 int MCP7940::GetValue(int n)	// n = 0:Year, 1:Month, 2:Day, 3:Hour, 4:Minute, 5:Second
 {
 	GetTime(0); //Update time
 	return Time_Date[n]; //Return desired value 
 }
 
+/**
+ * Set alarm for a given number of seconds from current time 
+ *
+ * @param Seconds, how many seconds from now the alarm should be set for 
+ * @return int, the I2C status value (if any error occours)
+ */
 int MCP7940::SetAlarm(unsigned int Seconds) { //Set alarm from current time to x seconds from current time 
 	//DEFINE LIMITS FOR FUNCTION!!
 
@@ -382,6 +415,11 @@ int MCP7940::SetAlarm(unsigned int Seconds) { //Set alarm from current time to x
   ClearAlarm();
 }
 
+/**
+ * Set the register bit to clear any current alarm flags, effectively disables alarm until SetAlarm() is called again
+ *
+ * @return int, the I2C status value (if any error occours)
+ */
 int MCP7940::ClearAlarm() {  //Clear registers to stop alarm, must call SetAlarm again to get it to turn on again
 	Wire.beginTransmission(ADR);
 	Wire.write(0x0F); //Write values to status reg
@@ -389,6 +427,11 @@ int MCP7940::ClearAlarm() {  //Clear registers to stop alarm, must call SetAlarm
 	Wire.endTransmission(); //return result of begin, reading is optional
 }
 
+/**
+ * Starts the crystal oscilator connected to the device (required to keep time)
+ *
+ * @return bool, state of oscilator at end of startup (1 = running, 0 = not running, error)
+ */
 bool MCP7940::StartOsc() //Turn on oscilator, returs TRUE if oscilator is set properly, false otherwise 
 {
 	uint8_t ControlTemp = ReadByte(Control);
@@ -405,6 +448,12 @@ bool MCP7940::StartOsc() //Turn on oscilator, returs TRUE if oscilator is set pr
 	return ReadBit(TimeRegs::WeekDay, 5); //Return the OSCRUN bit of the weekday register to test if oscilator is running
 }
 
+/**
+ * Helper function, reads byte and given register location
+ *
+ * @param Reg, the register to read the byte from 
+ * @return uint8_t, returns the desired byte
+ */
 uint8_t MCP7940::ReadByte(int Reg)
 {
 	Wire.beginTransmission(ADR); //Point to desired register 
@@ -419,6 +468,13 @@ uint8_t MCP7940::ReadByte(int Reg)
 	else return 0; //Otherwise return zero 
 }
 
+/**
+ * Helper function, write value (byte) to register at given register location
+ *
+ * @param Reg, the location of the register to write the data to
+ * @param Val, the value of the data to write to the register 
+ * @return int, I2C status
+ */
 int MCP7940::WriteByte(int Reg, uint8_t Val)
 {
 	Wire.beginTransmission(ADR);
@@ -427,12 +483,26 @@ int MCP7940::WriteByte(int Reg, uint8_t Val)
 	return Wire.endTransmission(); //Return I2C status 
 }
 
+/**
+ * Helper function, reads bit value from given byte and retuns this as bool
+ *
+ * @param Reg, the location of the register to read the data from
+ * @param Pos, the position of the bit to return
+ * @return bool, the value of the bit at the ith location 
+ */
 bool MCP7940::ReadBit(int Reg, uint8_t Pos)
 {
 	uint8_t Val = ReadByte(Reg);
 	return (Val >> Pos) & 0x01; //Return single reguested bit
 }
 
+/**
+ * Helper function, sets a bit at a given location in a register 
+ *
+ * @param Reg, the location of the register to set the bit in
+ * @param Pos, the position of the bit to set
+ * @return int, I2C status 
+ */
 int MCP7940::SetBit(int Reg, uint8_t Pos)
 {
 	uint8_t ValTemp = ReadByte(Reg);
@@ -441,6 +511,13 @@ int MCP7940::SetBit(int Reg, uint8_t Pos)
 	return WriteByte(Reg, ValTemp); //Write value back in place
 }
 
+/**
+ * Helper function, clears a bit at a given location in a register 
+ *
+ * @param Reg, the location of the register to clear the bit in
+ * @param Pos, the position of the bit to clear
+ * @return int, I2C status 
+ */
 int MCP7940::ClearBit(int Reg, uint8_t Pos)
 {
 	uint8_t ValTemp = ReadByte(Reg); //Grab register
