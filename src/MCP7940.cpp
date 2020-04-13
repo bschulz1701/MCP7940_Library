@@ -38,7 +38,7 @@ int MCP7940::Begin(void)
 	// Wire.write(0x0E); //Write values to Control reg
 	// Wire.write(0x24); //Start oscilator, turn off BBSQW, Turn off alarms, turn on convert
 	// return Wire.endTransmission(); //return result of begin, reading is optional
-	SetBit(TimeRegs::WeekDay, 3); //Turn backup battery enable
+	SetBit(Regs::WeekDay, 3); //Turn backup battery enable
 
 	bool OscError = StartOsc();
 	// Serial.print("Oscillator State:"); //DEBUG!
@@ -71,7 +71,7 @@ int MCP7940::SetTime(int Year, int Month, int Day, int DoW, int Hour, int Min, i
 	int TimeDate [7]={Sec,Min,Hour,DoW,Day,Month,Year};
 	for(int i=0; i<=6;i++){
 		if(i == 3) {
-			uint8_t DoW_Temp = ReadByte(TimeRegs::WeekDay); //Read in current value
+			uint8_t DoW_Temp = ReadByte(Regs::WeekDay); //Read in current value
 			DoW_Temp = DoW_Temp & 0xF8; //Clear lower 3 bits (day of week portion of register)
 			DoW_Temp = DoW_Temp | (DoW & 0x07); //Set lower 3 bits from DoW input
 			TimeDate[i] = DoW_Temp; //Return value  
@@ -313,43 +313,55 @@ int MCP7940::GetValue(int n)	// n = 0:Year, 1:Month, 2:Day, 3:Hour, 4:Minute, 5:
  * Set alarm for a given number of seconds from current time 
  *
  * @param Seconds, how many seconds from now the alarm should be set for 
+ * @param bool, AlarmVal, determine which alarm to be set
  * @return int, the I2C status value (if any error occours)
  */
-int MCP7940::SetAlarm(unsigned int Seconds) { //Set alarm from current time to x seconds from current time 
+int MCP7940::SetAlarm(unsigned int Seconds, bool AlarmNum) //Set alarm from current time to x seconds from current time 
+{ 
 	//DEFINE LIMITS FOR FUNCTION!!
+	uint8_t RegOffset = BlockOffset; 
+	if(AlarmNum == 1) RegOffset = AlarmOffset + BlockOffset; //Set offset if using ALM1
 
-	if(Seconds == 60) {
-		uint8_t AlarmMask = 0x07; //nibble for A1Mx values
+	ClearBit(Control, 4 + AlarmNum); //Turn off desired alarm bit (ALM0 or ALM1)
 
-		// Wire.beginTransmission(ADR);
-		// Wire.write(0x0E); //Write values to control reg
-		// Wire.write(0x40); //Turn on 1 Hz square wave
-		// Wire.endTransmission(); 
+	// if(Seconds == 60) { //Will trigger every minute, on the minute 
+	// 	// uint8_t AlarmMask = 0x07; //nibble for A1Mx values
 
-		Wire.beginTransmission(ADR);
-		Wire.write(0x0E); //Write values to control reg
-		Wire.write(0x06); //Turn on INTCN and Alarm 2
-		Wire.endTransmission(); 
+	// 	// // Wire.beginTransmission(ADR);
+	// 	// // Wire.write(0x0E); //Write values to control reg
+	// 	// // Wire.write(0x40); //Turn on 1 Hz square wave
+	// 	// // Wire.endTransmission(); 
 
-		//DEBUG!
-		Wire.beginTransmission(ADR);
-		Wire.write(0x0F); //Write values to control reg
-		Wire.write(0x00); //Clear any alarm flags, set oscilator to run
-		Wire.endTransmission(); 
+	// 	// Wire.beginTransmission(ADR);
+	// 	// Wire.write(0x0E); //Write values to control reg
+	// 	// Wire.write(0x06); //Turn on INTCN and Alarm 2
+	// 	// Wire.endTransmission(); 
 
-		for(int i=0; i < 3;i++){
-			Wire.beginTransmission(ADR);
-			Wire.write(0x0B + i); //Write values starting at reg 0x0B
-			// Wire.write(((AlarmMask & (1 << i)) << 8)); //Write time date values into regs
-			Wire.write(0x80); 
-			Wire.endTransmission(); //return result of begin, reading is optional
-		}
-	}
+	// 	// //DEBUG!
+	// 	// Wire.beginTransmission(ADR);
+	// 	// Wire.write(0x0F); //Write values to control reg
+	// 	// Wire.write(0x00); //Clear any alarm flags, set oscilator to run
+	// 	// Wire.endTransmission(); 
 
-	else {
+	// 	// for(int i=0; i < 3;i++){
+	// 	// 	Wire.beginTransmission(ADR);
+	// 	// 	Wire.write(0x0B + i); //Write values starting at reg 0x0B
+	// 	// 	// Wire.write(((AlarmMask & (1 << i)) << 8)); //Write time date values into regs
+	// 	// 	Wire.write(0x80); 
+	// 	// 	Wire.endTransmission(); //return result of begin, reading is optional
+	// 	// }
+	// 	ClearBit(Control, 4 + AlarmVal); //Turn off desired alarm bit (ALM0 or ALM1)
+	// 	uint8_t AlarmRegTemp = ReadByte(AlarmRegs::WeekDay + RegOffset); //Read in week day alarm reg for other values in reg
+	// 	AlarmRegTemp = AlarmRegTemp & 0x8F; //Clear mask bits, match only seconds
+	// 	WriteByte(AlarmRegs::WeekDay + RegOffset, AlarmRegTemp); //Write back config reg
+	// 	WriteByte(AlarmRegs::Seconds, 0x00); //Write for alarm to trigger at 0 seconds 
+	// 	SetBit(Control, 4 + AlarmVal); //Turn desired alarm (ALM0 or ALM1) back on
+	// }
+
+	// else {
 	//Currently can not set timer for more than 24 hours
-	uint8_t AlarmMask = 0x08; //nibble for A1Mx values
-	uint8_t DY = 0; //DY/DT value 
+	// uint8_t AlarmMask = 0x08; //nibble for A1Mx values
+	// uint8_t DY = 0; //DY/DT value 
 	GetTime(0);
 
 	int AlarmTime[7] = {Time_Date[5], Time_Date[4], Time_Date[3], 0, Time_Date[2], Time_Date[1], Time_Date[0]};
@@ -357,13 +369,21 @@ int MCP7940::SetAlarm(unsigned int Seconds) { //Set alarm from current time to x
 	int CarryIn = 0; //Carry value
 	int CarryOut = 0; 
 	int MonthDay[13] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};  //Use??
-	if(AlarmTime[6] % 400 == 0) MonthDay[2] = 29; //If year is divisable by 400, is leap year, correct days in February
-	else if((AlarmTime[6] % 4 == 0) && (AlarmTime[6] % 100 != 0)) MonthDay[2] = 29; //Otherwise, if IS dividsable by 4, but NOT multiple of 100, is leap year, correct days in February
+	//Check if the next year is a leap year 
+	// bool LeapYear = false; //Flag to check if it is a leap year
+	// if(AlarmTime[6] % 400 == 0) LeapYear = true; //If year is divisable by 400, is leap year, set leap year flag
+	// else if((AlarmTime[6] % 4 == 0) && (AlarmTime[6] % 100 != 0)) LeapYear = true; //Otherwise, if IS dividsable by 4, but NOT multiple of 100, is leap year, set leap year flag
 
-	Wire.beginTransmission(ADR);
-	Wire.write(0x0E); //Write values to control reg
-	Wire.write(0x05); //Turn on INTCN and Alarm 1
-	Wire.endTransmission(); 
+	if(ReadBit(Regs::Month, 5)) MonthDay[2] = 29; //If LPYR is set, then adjust number of days in Febuary //FIX! Check if this is correct in terms of setting an alarm into next year 
+	// if(LeapYear) {
+	// 	MonthDay[2] = 29; //Correct days in Febuary
+	// }
+
+	// Wire.beginTransmission(ADR);
+	// Wire.write(0x0E); //Write values to control reg
+	// Wire.write(0x05); //Turn on INTCN and Alarm 1
+	// Wire.endTransmission(); 
+	
 
 	//Calc seconds
 	if(AlarmTime[0] + AlarmVal[0] >= 60) CarryOut = 1;
@@ -390,41 +410,148 @@ int MCP7940::SetAlarm(unsigned int Seconds) { //Set alarm from current time to x
 
 
 	//ADD FAILURE NOTIFICATION FOR OUT OF RANGE??
-
-	int Offset = 0;
 	for(int i=0; i<=6;i++){
-		if(i==3) i++;
-		int b= AlarmTime[i]/10;
-		int a= AlarmTime[i]-b*10;
-		if(i==2){
-			if (b==2)
-				b=B00000010;
-			else if (b==1)
-				b=B00000001;
-		}	
-		AlarmTime[i]= a+(b<<4);
-		  
-		Wire.beginTransmission(ADR);
-		Wire.write(0x07 + Offset); //Write values starting at reg 0x07
-		Wire.write(AlarmTime[i] | ((AlarmMask & (1 << Offset)) << 8)); //Write time date values into regs
-		Wire.endTransmission(); //return result of begin, reading is optional
-		Offset++;
-	}
+		if(i == 3) {
+			uint8_t DoW_Temp = ReadByte(Regs::WeekDay + RegOffset); //Read in current value
+			DoW_Temp = DoW_Temp & 0xF8; //Clear lower 3 bits (day of week portion of register)
+			DoW_Temp = DoW_Temp | 0x70 | (AlarmTime[i] & 0x07); //Set lower 3 bits from DoW input, set MSK bits to configure for full match
+			AlarmTime[i] = DoW_Temp; //Return value  
+		}
+		else { //Otherwise write method for other regs
+			int b = AlarmTime[i]/10;
+			int a = AlarmTime[i]-b*10;
+			if(i == 2){
+				if (b==2)
+					b=B00000010;
+				else if (b==1)
+					b=B00000001;
+			}	
+			AlarmTime[i]= a+(b<<4);
+			// if(i == 0) AlarmTime[i] = AlarmTime[i] | 0x80; //Set ST bit to keep oscilator running 
+
+			//FIX! Test for leap year and set LPYR bit
+		}
+		WriteByte(Regs::Seconds + RegOffset + i, AlarmTime[i]); //Write AlarmTime back to specified alarm register 
 	}
 
-  ClearAlarm();
+
+	// int Offset = 0;
+	// for(int i=0; i<=6;i++){
+	// 	if(i==3) i++;
+	// 	int b= AlarmTime[i]/10;
+	// 	int a= AlarmTime[i]-b*10;
+	// 	if(i==2){
+	// 		if (b==2)
+	// 			b=B00000010;
+	// 		else if (b==1)
+	// 			b=B00000001;
+	// 	}	
+	// 	AlarmTime[i]= a+(b<<4);
+		  
+	// 	Wire.beginTransmission(ADR);
+	// 	Wire.write(0x07 + Offset); //Write values starting at reg 0x07
+	// 	Wire.write(AlarmTime[i] | ((AlarmMask & (1 << Offset)) << 8)); //Write time date values into regs
+	// 	Wire.endTransmission(); //return result of begin, reading is optional
+	// 	Offset++;
+	// }
+	// }
+	// }
+
+	//FIX! Should the alarm be turned on before status is cleared, or vise-versa??
+	SetBit(Control, 4 + AlarmNum); //Turn desired alarm (ALM0 or ALM1) back on 
+	ClearAlarm(AlarmNum); //Clear any existing alarm
+
+
+}
+
+/**
+ * Set alarm for to trigger once a minute at a given second period offset
+ *
+ * @param Offset, how many seconds to offset on the minute alarm (if set to 30, the alarm will trigger every minute on the half minute)
+ * @param bool, AlarmVal, determine which alarm to be set
+ * @return int, the I2C status value (if any error occours)
+ */
+int MCP7940::SetMinuteAlarm(unsigned int Offset, bool AlarmVal) //Set alarm from current time to x seconds from current time 
+{ 
+	uint8_t RegOffset = BlockOffset; 
+	if(AlarmVal == 1) RegOffset = AlarmOffset + BlockOffset; //Set offset if using ALM1
+
+	ClearBit(Control, 4 + AlarmVal); //Turn off desired alarm bit (ALM0 or ALM1)
+	uint8_t AlarmRegTemp = ReadByte(Regs::WeekDay + RegOffset); //Read in week day alarm reg for other values in reg
+	AlarmRegTemp = AlarmRegTemp & 0x8F; //Clear mask bits, match only seconds
+	WriteByte(Regs::WeekDay + RegOffset, AlarmRegTemp); //Write back config reg
+
+	uint8_t SecondsOffset = (Offset % 0x0A) | ((Offset/10) << 4); //Convert offset to BCD
+	WriteByte(Regs::Seconds + RegOffset, SecondsOffset); //Write for alarm to trigger at offset period  
+	SetBit(Control, 4 + AlarmVal); //Turn desired alarm (ALM0 or ALM1) back on
+
+	ClearAlarm(AlarmVal); //Clear specified alarm 
+}
+
+/**
+ * Set alarm for to trigger once a hour at a given minutes period offset
+ *
+ * @param Offset, how many minutes to offset on the minute alarm (if set to 30, the alarm will trigger every hour on the half hour)
+ * @param bool, AlarmVal, determine which alarm to be set
+ * @return int, the I2C status value (if any error occours)
+ */
+int MCP7940::SetHourAlarm(unsigned int Offset, bool AlarmVal) //Set alarm from current time to x seconds from current time 
+{ 
+	uint8_t RegOffset = BlockOffset; 
+	if(AlarmVal == 1) RegOffset = AlarmOffset + BlockOffset; //Set offset if using ALM1
+
+	ClearBit(Control, 4 + AlarmVal); //Turn off desired alarm bit (ALM0 or ALM1)
+	uint8_t AlarmRegTemp = ReadByte(Regs::WeekDay + RegOffset); //Read in week day alarm reg for other values in reg
+	AlarmRegTemp = AlarmRegTemp & 0x8F; //Clear mask bits
+	AlarmRegTemp = AlarmRegTemp | 0x10; //Set ALMxMSK0, match only minutes
+	WriteByte(Regs::WeekDay + RegOffset, AlarmRegTemp); //Write back config reg
+
+	uint8_t MinuteOffset = (Offset % 0x0A) | ((Offset/10) << 4); //Convert offset to BCD
+	WriteByte(Regs::Minutes, MinuteOffset); //Write for alarm to trigger at offset period  
+	SetBit(Control, 4 + AlarmVal); //Turn desired alarm (ALM0 or ALM1) back on
+
+	ClearAlarm(AlarmVal); //Clear specified alarm 
+}
+
+/**
+ * Set alarm for to trigger once a day at a given hour period offset
+ *
+ * @param Offset, how many seconds to offset on the minute alarm (if set to 6, the alarm will trigger every day at 6AM)
+ * @param bool, AlarmVal, determine which alarm to be set
+ * @return int, the I2C status value (if any error occours)
+ */
+int MCP7940::SetDayAlarm(unsigned int Offset, bool AlarmVal) //Set alarm from current time to x seconds from current time 
+{ 
+	uint8_t RegOffset = BlockOffset; 
+	if(AlarmVal == 1) RegOffset = AlarmOffset + BlockOffset; //Set offset if using ALM1
+
+	ClearBit(Control, 4 + AlarmVal); //Turn off desired alarm bit (ALM0 or ALM1)
+	uint8_t AlarmRegTemp = ReadByte(Regs::WeekDay + RegOffset); //Read in week day alarm reg for other values in reg
+	AlarmRegTemp = AlarmRegTemp & 0x8F; //Clear mask bits
+	AlarmRegTemp = AlarmRegTemp | 0x20; //Set ALMxMSK1, match only hours
+	WriteByte(Regs::WeekDay + RegOffset, AlarmRegTemp); //Write back config reg
+
+	uint8_t HourOffset = (Offset % 0x0A) | ((Offset/10) << 4); //Convert offset to BCD 
+	WriteByte(Regs::Hours, HourOffset); //Write for alarm to trigger at offset period  
+	SetBit(Control, 4 + AlarmVal); //Turn desired alarm (ALM0 or ALM1) back on
+
+	ClearAlarm(AlarmVal); //Clear specified alarm 
 }
 
 /**
  * Set the register bit to clear any current alarm flags, effectively disables alarm until SetAlarm() is called again
  *
+ * @param bool, AlarmVal, determine which alarm to be set
  * @return int, the I2C status value (if any error occours)
  */
-int MCP7940::ClearAlarm() {  //Clear registers to stop alarm, must call SetAlarm again to get it to turn on again
-	Wire.beginTransmission(ADR);
-	Wire.write(0x0F); //Write values to status reg
-	Wire.write(0x00); //Clear all flags
-	Wire.endTransmission(); //return result of begin, reading is optional
+int MCP7940::ClearAlarm(bool AlarmVal) {  //Clear registers to stop alarm, must call SetAlarm again to get it to turn on again
+	// Wire.beginTransmission(ADR);
+	// Wire.write(0x0F); //Write values to status reg
+	// Wire.write(0x00); //Clear all flags
+	// Wire.endTransmission(); //return result of begin, reading is optional
+	uint8_t RegOffset = BlockOffset; 
+	if(AlarmVal == 1) RegOffset = AlarmOffset + BlockOffset; //Set offset if using ALM1
+	return ClearBit(Regs::WeekDay + RegOffset, 3); //Clear interrupt flag bit of the desired alarm register 
 }
 
 /**
@@ -436,16 +563,16 @@ bool MCP7940::StartOsc() //Turn on oscilator, returs TRUE if oscilator is set pr
 {
 	uint8_t ControlTemp = ReadByte(Control);
 	ControlTemp = ControlTemp & 0xF7; //Clear EXTOSC bit to enable and external oscilator 
-	uint8_t SecTemp = ReadByte(TimeRegs::Seconds); //Read value from seconds register to use as mask
+	uint8_t SecTemp = ReadByte(Regs::Seconds); //Read value from seconds register to use as mask
 	SecTemp = SecTemp | 0x80; //Set ST bit to start oscilator
 	WriteByte(Control, ControlTemp); //Write back value of temp control register
-	WriteByte(TimeRegs::Seconds, SecTemp); //Write back value of seconds register (for ST bit)
+	WriteByte(Regs::Seconds, SecTemp); //Write back value of seconds register (for ST bit)
 	delay(5); //Wait for oscilator to start 
 	// Serial.println(ControlTemp, HEX); //DEBUG!
 	// Serial.println(SecTemp, HEX); //DEBUG!
 	// Serial.println(Control, HEX); //DEBUG!
 	// Serial.println(TimeRegs::Seconds, HEX); //DEBUG!
-	return ReadBit(TimeRegs::WeekDay, 5); //Return the OSCRUN bit of the weekday register to test if oscilator is running
+	return ReadBit(Regs::WeekDay, 5); //Return the OSCRUN bit of the weekday register to test if oscilator is running
 }
 
 /**

@@ -26,7 +26,29 @@ Distributed as-is; no warranty is given.
 #define MONTH 1
 #define YEAR 0
 
+enum Regs : uint8_t //Define time write/read registers
+{
+	Seconds = 0x00,
+	Minutes = 0x01,
+	Hours = 0x02,
+	WeekDay = 0x03,
+	Date = 0x04,
+	Month = 0x05,
+	Year = 0x06,
+};
 
+// enum class AlarmRegs : uint8_t //Define time write/read registers
+// {
+// 	Seconds = 0x0A,
+// 	Minutes = 0x0B,
+// 	Hours = 0x0C,
+// 	WeekDay = 0x0D,
+// 	Date = 0x0E,
+// 	Month = 0x0F,
+// };
+
+const uint8_t AlarmOffset = 0x07; //Offset between ALM0 and ALM1 regs
+const uint8_t BlockOffset = 0x0A; //Offset from time regs to ALM regs
 
 
 
@@ -42,9 +64,13 @@ class MCP7940
 		unsigned long GetTimeUnix(); 
 		// float GetTemp();
 		int GetValue(int n);
-		int SetAlarm(unsigned int Seconds);
-		int ClearAlarm();
-		uint8_t ReadByte(int Reg); 
+		int SetAlarm(unsigned int Seconds, bool AlarmVal = 0); //Default to ALM0
+		int SetMinuteAlarm(unsigned int Offset, bool AlarmVal = 0); //Default to ALM0
+		int SetHourAlarm(unsigned int Offset, bool AlarmVal = 0); //Default to ALM0
+		int SetDayAlarm(unsigned int Offset, bool AlarmVal = 0); //Default to ALM0
+		int ClearAlarm(bool AlarmVal = 0); //Default to ALM0
+
+		uint8_t ReadByte(int Reg); //DEBUG! Make private
 
 	private:
 		bool StartOsc();
@@ -55,16 +81,7 @@ class MCP7940
 		int ClearBit(int Reg, uint8_t Pos);
 		const int ADR = 0x6F; //Address of MCP7940 (non-variable)
 		int Time_Date[6]; //Store date time values of integers 
-		enum TimeRegs : uint8_t //Define time write/read registers
-		{
-			Seconds = 0x00,
-			Minutes = 0x01,
-			Hours = 0x02,
-			WeekDay = 0x03,
-			Date = 0x04,
-			Month = 0x05,
-			Year = 0x06,
-		};
+
 		const uint8_t Control = 0x07;
 
 };
