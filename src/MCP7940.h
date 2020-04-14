@@ -37,6 +37,8 @@ enum Regs : uint8_t //Define time write/read registers
 	Year = 0x06,
 };
 
+
+
 // enum class AlarmRegs : uint8_t //Define time write/read registers
 // {
 // 	Seconds = 0x0A,
@@ -56,11 +58,19 @@ const uint8_t BlockOffset = 0x0A; //Offset from time regs to ALM regs
 class MCP7940
 {
 	public:
+		enum class Format: int
+		{
+			Scientific = 0,
+			Civilian = 1,
+			US = 2,
+			ISO_8601 = 3,
+			Stardate = 1701
+		};
 		MCP7940();
 		int Begin(void);
 		int SetTime(int Year, int Month, int Day, int DoW, int Hour, int Min, int Sec);
 		int SetTime(int Year, int Month, int Day, int Hour, int Min, int Sec);
-		String GetTime(int mode = 0);
+		String GetTime(Format mode = Format::Scientific); //Default to scientifc
 		unsigned long GetTimeUnix(); 
 		// float GetTemp();
 		int GetValue(int n);
@@ -71,6 +81,7 @@ class MCP7940
 		int ClearAlarm(bool AlarmVal = 0); //Default to ALM0
 
 		uint8_t ReadByte(int Reg); //DEBUG! Make private
+		
 
 	private:
 		bool StartOsc();

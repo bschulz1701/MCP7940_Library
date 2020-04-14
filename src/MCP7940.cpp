@@ -129,7 +129,7 @@ int MCP7940::SetTime(int Year, int Month, int Day, int Hour, int Min, int Sec)
  * @param Mode, used to set which value is returned 
  * @return String of current time/date in the requested format 
  */
-String MCP7940::GetTime(int mode)
+String MCP7940::GetTime(Format mode)
 {
 	String temp;
 		int TimeDate [7]; //second,minute,hour,null,day,month,year	
@@ -191,7 +191,7 @@ String MCP7940::GetTime(int mode)
 		TimeDateStr[0] = "20" + TimeDateStr[0];
 
 	//Format raw results into appropriate string
-	if(mode == 0) //Return in order Year, Month, Day, Hour, Minute, Second (Scientific Style)
+	if(mode == Format::Scientific) //Return in order Year, Month, Day, Hour, Minute, Second (Scientific Style)
 	{
 		temp.concat(TimeDateStr[0]);
 		temp.concat("/") ;
@@ -207,7 +207,7 @@ String MCP7940::GetTime(int mode)
 	  	return(temp);
 	}
 
-	if(mode == 1) //Return in order Month, Day, Year, Hour, Minute, Second (US Civilian Style)
+	if(mode == Format::Civilian) //Return in order Month, Day, Year, Hour, Minute, Second (US Civilian Style)
 	{
 
 		temp.concat(TimeDateStr[1]);
@@ -224,7 +224,7 @@ String MCP7940::GetTime(int mode)
 	  	return(temp);
 	}
 
-	if(mode == 2) //Return in order Month, Day, Year, Hour (12 hour), Minute, Second
+	if(mode == Format::US) //Return in order Month, Day, Year, Hour (12 hour), Minute, Second
 	{
 		temp.concat(TimeDateStr[1]);
 		temp.concat("/") ;
@@ -242,7 +242,7 @@ String MCP7940::GetTime(int mode)
 	  	return(temp);
 	}
 
-	if(mode == 3) //Return in ISO 8601 standard (UTC)
+	if(mode == Format::ISO_8601) //Return in ISO 8601 standard (UTC)
 	{
 		temp.concat(TimeDateStr[0]);
 		temp.concat("-");
@@ -259,7 +259,7 @@ String MCP7940::GetTime(int mode)
 		return(temp);
 	}
 
-	if(mode == 1701) //Returns in order Year, Day (of year), Hour, Minute, Second (Stardate)
+	if(mode == Format::Stardate) //Returns in order Year, Day (of year), Hour, Minute, Second (Stardate)
 	{
 		int DayOfYear = 0;
 		int MonthDay[13] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
@@ -305,18 +305,18 @@ unsigned long MCP7940::GetTimeUnix()
  */
 int MCP7940::GetValue(int n)	// n = 0:Year, 1:Month, 2:Day, 3:Hour, 4:Minute, 5:Second
 {
-	GetTime(0); //Update time
+	GetTime(MCP7940::Format::ISO_8601); //Update time
 	return Time_Date[n]; //Return desired value 
 }
 
 /**
  * Set alarm for a given number of seconds from current time 
  *
- * @param Seconds, how many seconds from now the alarm should be set for 
+ * @param Delta, how many seconds from now the alarm should be set for 
  * @param bool, AlarmVal, determine which alarm to be set
  * @return int, the I2C status value (if any error occours)
  */
-int MCP7940::SetAlarm(unsigned int Seconds, bool AlarmNum) //Set alarm from current time to x seconds from current time 
+int MCP7940::SetAlarm(unsigned int Delta, bool AlarmNum) //Set alarm from current time to x seconds from current time 
 { 
 	//DEFINE LIMITS FOR FUNCTION!!
 	uint8_t RegOffset = BlockOffset; 
@@ -362,10 +362,10 @@ int MCP7940::SetAlarm(unsigned int Seconds, bool AlarmNum) //Set alarm from curr
 	//Currently can not set timer for more than 24 hours
 	// uint8_t AlarmMask = 0x08; //nibble for A1Mx values
 	// uint8_t DY = 0; //DY/DT value 
-	GetTime(0);
+	GetTime(MCP7940::Format::ISO_8601);
 
 	int AlarmTime[7] = {Time_Date[5], Time_Date[4], Time_Date[3], 0, Time_Date[2], Time_Date[1], Time_Date[0]};
-	int AlarmVal[7] = {Seconds % 60, ((Seconds - (Seconds % 60))/60) % 60, ((Seconds - (Seconds % 3600))/3600) % 24, 0, ((Seconds - (Seconds % 86400))/86400), 0, 0};  //Remove unused elements?? FIX!
+	int AlarmVal[7] = {Delta % 60, ((Delta - (Delta % 60))/60) % 60, ((Delta - (Delta % 3600))/3600) % 24, 0, ((Delta - (Delta % 86400))/86400), 0, 0};  //Remove unused elements?? FIX!
 	int CarryIn = 0; //Carry value
 	int CarryOut = 0; 
 	int MonthDay[13] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};  //Use??
@@ -373,6 +373,8 @@ int MCP7940::SetAlarm(unsigned int Seconds, bool AlarmNum) //Set alarm from curr
 	// bool LeapYear = false; //Flag to check if it is a leap year
 	// if(AlarmTime[6] % 400 == 0) LeapYear = true; //If year is divisable by 400, is leap year, set leap year flag
 	// else if((AlarmTime[6] % 4 == 0) && (AlarmTime[6] % 100 != 0)) LeapYear = true; //Otherwise, if IS dividsable by 4, but NOT multiple of 100, is leap year, set leap year flag
+
+	
 
 	if(ReadBit(Regs::Month, 5)) MonthDay[2] = 29; //If LPYR is set, then adjust number of days in Febuary //FIX! Check if this is correct in terms of setting an alarm into next year 
 	// if(LeapYear) {
@@ -407,6 +409,14 @@ int MCP7940::SetAlarm(unsigned int Seconds, bool AlarmNum) //Set alarm from curr
 	else CarryOut = 0;
 	AlarmTime[4] = (AlarmTime[4] + AlarmVal[4] + CarryIn) % (MonthDay[AlarmTime[5]] + 1);
 	if(AlarmTime[4] == 0) AlarmTime[4] = 1; //FIX! Find more elegant way to do this
+
+	// int q = 5; 
+	// for(int i = 0; i < 7; i++) { //DEBUG!
+	// 	Serial.print(Time_Date[q]); 
+	// 	Serial.print('\t');
+	// 	Serial.println(AlarmTime[i]);
+	// 	if(q != 2) q--; 
+	// }
 
 
 	//ADD FAILURE NOTIFICATION FOR OUT OF RANGE??
