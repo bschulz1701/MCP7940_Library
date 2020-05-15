@@ -15,6 +15,21 @@ Distributed as-is; no warranty is given.
 
 // #include "Arduino.h"
 #include "MCP7940.h"
+#include <Wire.h>
+
+enum Regs : uint8_t //Define time write/read registers
+{
+	Seconds = 0x00,
+	Minutes = 0x01,
+	Hours = 0x02,
+	WeekDay = 0x03,
+	Date = 0x04,
+	Month = 0x05,
+	Year = 0x06,
+};
+
+const uint8_t AlarmOffset = 0x07; //Offset between ALM0 and ALM1 regs
+const uint8_t BlockOffset = 0x0A; //Offset from time regs to ALM regs
 
 // #define RETRO_ON_MANUAL //Debug include 
 
@@ -123,6 +138,52 @@ int MCP7940::SetTime(int Year, int Month, int Day, int Hour, int Min, int Sec)
 	return SetTime(Year, Month, Day, 0, Hour, Min, Sec); //Pass to full funciton, force WeekDay to zero 
 }
 
+MCP7940::Timestamp MCP7940::GetRawTime() {
+	int TimeDate [7]; //second,minute,hour,weekday,monthday,month,year
+	Wire.beginTransmission(ADR); //Ask 1 byte of data
+	Wire.write(0x00); //Read values starting at reg 0x00
+	Wire.endTransmission();
+	Wire.requestFrom(ADR, 7);	//WAIT FOR DATA BACK FIX!!
+
+	for(int i=0; i<=6;i++){
+		int n = Wire.read(); //Read value of reg
+
+		//Process results
+		int a=n & B00001111;
+		int high = (n >> 4) & B1111;
+		switch (i) {
+		case 0: // seconds
+		case 1: // minutes
+			a += (high & B0111) * 10;
+			break;
+		case 2: // hour (24-hour time)
+		case 4: // day of month
+			a += (high & B0011) * 10;
+			break;
+		case 3: // day of week
+			a &= B0111;
+			break;
+		case 5: // month of year
+			a += (high & B0001) * 10;
+			break;
+		default: // year
+			a += high * 10;
+			break;
+		}
+		TimeDate[i] = a;
+	}
+
+	return {
+		.year  = (uint16_t)(TimeDate[6] + 2000),
+		.month = (uint8_t)TimeDate[5],
+		.mday  = (uint8_t)TimeDate[4],
+		.wday  = (uint8_t)TimeDate[3],
+		.hour  = (uint8_t)TimeDate[2],
+		.min   = (uint8_t)TimeDate[1],
+		.sec   = (uint8_t)TimeDate[0]
+	};
+}
+
 /**
  * Return current time from device, formatted
  *
@@ -131,159 +192,41 @@ int MCP7940::SetTime(int Year, int Month, int Day, int Hour, int Min, int Sec)
  */
 String MCP7940::GetTime(Format mode)
 {
-	String temp;
-		int TimeDate [7]; //second,minute,hour,null,day,month,year	
-		Wire.beginTransmission(ADR); //Ask 1 byte of data 
-		Wire.write(0x00); //Read values starting at reg 0x00
-		Wire.endTransmission();
-		Wire.requestFrom(ADR, 7);	//WAIT FOR DATA BACK FIX!!
-		for(int i=0; i<=6;i++){
-			if(i==3) {
-				i++; //Throw away DoW value?
-				Wire.read();
-			}
-
-			unsigned int n = Wire.read(); //Read value of reg
-
-			//Process results
-			int a=n & B00001111;    
-			if(i==2){	
-				int b=(n & B00110000)>>4; //24 hour mode
-				if(b==B00000010)
-					b=20;        
-				else if(b==B00000001)
-					b=10;
-				TimeDate[i]=a+b;
-			}
-			else if(i==4){
-				int b=(n & B00110000)>>4;
-				TimeDate[i]=a+b*10;
-			}
-			else if(i==5){
-				int b=(n & B00010000)>>4;
-				TimeDate[i]=a+b*10;
-			}
-			else if(i==6){
-				int b=(n & B11110000)>>4;
-				TimeDate[i]=a+b*10;
-			}
-			else{	
-				int b=(n & B01110000)>>4;
-				TimeDate[i]=a+b*10;	
-				}
-		}
-
-		Time_Date[0] = TimeDate[6];
-		Time_Date[1] = TimeDate[5];
-		Time_Date[2] = TimeDate[4];
-		Time_Date[3] = TimeDate[2];
-		Time_Date[4] = TimeDate[1];
-		Time_Date[5] = TimeDate[0];
-
-		String TimeDateStr[7];
-		for(int i = 0; i < 6; i++) {
-			TimeDateStr[i] = String(Time_Date[i]);
-			if(TimeDateStr[i].length() < 2) {
-				TimeDateStr[i] = "0" + TimeDateStr[i];
-			}
-			// Serial.println(TimeDateStr[i]); //DEBUG!
-		}
-		TimeDateStr[0] = "20" + TimeDateStr[0];
+	Timestamp t = GetRawTime();
+	char str[32];
 
 	//Format raw results into appropriate string
-	if(mode == Format::Scientific) //Return in order Year, Month, Day, Hour, Minute, Second (Scientific Style)
-	{
-		temp.concat(TimeDateStr[0]);
-		temp.concat("/") ;
-		temp.concat(TimeDateStr[1]);
-		temp.concat("/") ;
-		temp.concat(TimeDateStr[2]);
-		temp.concat(" ") ;
-		temp.concat(TimeDateStr[3]);
-		temp.concat(":") ;
-		temp.concat(TimeDateStr[4]);
-		temp.concat(":") ;
-		temp.concat(TimeDateStr[5]);
-	  	return(temp);
-	}
-
-	if(mode == Format::Civilian) //Return in order Month, Day, Year, Hour, Minute, Second (US Civilian Style)
-	{
-
-		temp.concat(TimeDateStr[1]);
-		temp.concat("/") ;
-		temp.concat(TimeDateStr[2]);
-		temp.concat("/") ;
-		temp.concat(TimeDateStr[0]);
-		temp.concat(" ") ;
-		temp.concat(TimeDateStr[3]);
-		temp.concat(":") ;
-		temp.concat(TimeDateStr[4]);
-		temp.concat(":") ;
-		temp.concat(TimeDateStr[5]);
-	  	return(temp);
-	}
-
-	if(mode == Format::US) //Return in order Month, Day, Year, Hour (12 hour), Minute, Second
-	{
-		temp.concat(TimeDateStr[1]);
-		temp.concat("/") ;
-		temp.concat(TimeDateStr[2]);
-		temp.concat("/") ;
-		temp.concat(TimeDateStr[0]);
-		temp.concat(" ") ;
-		temp.concat(TimeDate[3] % 12);
-		temp.concat(":") ;
-		temp.concat(TimeDateStr[4]);
-		temp.concat(":") ;
-		temp.concat(TimeDateStr[5]);
-		if(TimeDate[3] >= 12) temp.concat(" PM");
-		else temp.concat(" AM");
-	  	return(temp);
-	}
-
-	if(mode == Format::ISO_8601) //Return in ISO 8601 standard (UTC)
-	{
-		temp.concat(TimeDateStr[0]);
-		temp.concat("-");
-		temp.concat(TimeDateStr[1]);
-		temp.concat("-");
-		temp.concat(TimeDateStr[2]);
-		temp.concat("T");
-		temp.concat(TimeDateStr[3]);
-		temp.concat(":");
-		temp.concat(TimeDateStr[4]);
-		temp.concat(":");
-		temp.concat(TimeDateStr[5]);
-		temp.concat("Z"); //FIX! Hard code for UTC time, allow for a fix??
-		return(temp);
-	}
-
-	if(mode == Format::Stardate) //Returns in order Year, Day (of year), Hour, Minute, Second (Stardate)
-	{
-		int DayOfYear = 0;
-		int MonthDay[13] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-		if(TimeDate[6] % 4 == 0) MonthDay[2] = 29;
-
-		for(int m = 1; m < TimeDate[5]; m++)
-		{
-			DayOfYear = DayOfYear + MonthDay[m];
+	switch (mode) {
+	case Format::Scientific: // Return in order Year, Month, Day, Hour, Minute, Second (Scientific Style)
+		sprintf(str, "%04d/%02d/%02d %02d:%02d:%02d", t.year, t.month, t.mday, t.hour, t.min, t.sec);
+		break;
+	case Format::Civilian: // Return in order Month, Day, Year, Hour, Minute, Second (US Civilian Style)
+		sprintf(str, "%02d/%02d/%04d %02d:%02d:%02d", t.month, t.mday, t.year, t.hour, t.min, t.sec);
+		break;
+	case Format::US: { // Return in order Month, Day, Year, Hour (12 hour), Minute, Second
+			uint8_t twelveHour = t.hour % 12;
+			if (twelveHour == 0) twelveHour = 12;
+			sprintf(str, "%02d/%02d/%04d %02d:%02d:%02d %cM", t.month, t.mday, t.year, twelveHour, t.min, t.sec, t.hour >= 12 ? 'P' : 'A');
+			break;
 		}
-		DayOfYear = DayOfYear + TimeDate[4];
-
-		temp.concat(TimeDateStr[6]);
-		temp.concat(".") ;
-		temp.concat(DayOfYear);
-		temp.concat(" ") ;
-		temp.concat(TimeDateStr[2]);
-		temp.concat(".") ;
-		temp.concat(TimeDateStr[1]);
-		temp.concat(".") ;
-		temp.concat(TimeDateStr[0]);
-	  	return(temp);
+	case Format::ISO_8601: // Return in ISO 8601 standard (UTC)
+		// FIX! Hard code for UTC time, allow for a fix??
+		sprintf(str, "%04d-%02d-%02dT%02d:%02d:%02dZ", t.year, t.month, t.mday, t.hour, t.min, t.sec);
+		break;
+	case Format::Stardate: { // Returns in order Year, Day (of year), Hour, Minute, Second (Stardate)
+			int DayOfYear = t.mday;
+			int MonthDay[13] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+			if (t.year % 4 == 0) MonthDay[2] = 29;
+			for(int m = 1; m < t.month; m++) {
+				DayOfYear += MonthDay[m];
+			}
+			sprintf(str, "%04d.%d %02d.%02d.%02d", t.year, DayOfYear, t.hour, t.min, t.sec);
+			break;
+		}
+	default:
+		return "Invalid Input";
 	}
-
-	else return("Invalid Input");
+	return str;
 }
 
 /**

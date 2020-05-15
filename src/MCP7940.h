@@ -17,27 +17,7 @@ Distributed as-is; no warranty is given.
 #define MCP7940_h
 
 #include "Arduino.h"
-#include <Wire.h>
-
-#define SECOND 5
-#define MINUTE 4
-#define HOUR 3
-#define DAY 2
-#define MONTH 1
-#define YEAR 0
-
-enum Regs : uint8_t //Define time write/read registers
-{
-	Seconds = 0x00,
-	Minutes = 0x01,
-	Hours = 0x02,
-	WeekDay = 0x03,
-	Date = 0x04,
-	Month = 0x05,
-	Year = 0x06,
-};
-
-
+#include <cstdint>
 
 // enum class AlarmRegs : uint8_t //Define time write/read registers
 // {
@@ -48,9 +28,6 @@ enum Regs : uint8_t //Define time write/read registers
 // 	Date = 0x0E,
 // 	Month = 0x0F,
 // };
-
-const uint8_t AlarmOffset = 0x07; //Offset between ALM0 and ALM1 regs
-const uint8_t BlockOffset = 0x0A; //Offset from time regs to ALM regs
 
 
 
@@ -66,10 +43,22 @@ class MCP7940
 			ISO_8601 = 3,
 			Stardate = 1701
 		};
+
+		struct Timestamp {
+			uint16_t year;  // e.g. 2020
+			uint8_t  month; // 1-12
+			uint8_t  mday;  // Day of the month, 1-31
+			uint8_t  wday;  // Day of the week, 1-7
+			uint8_t  hour;  // 0-23
+			uint8_t  min;   // 0-59
+			uint8_t  sec;   // 0-59
+		};
+
 		MCP7940();
 		int Begin(void);
 		int SetTime(int Year, int Month, int Day, int DoW, int Hour, int Min, int Sec);
 		int SetTime(int Year, int Month, int Day, int Hour, int Min, int Sec);
+		Timestamp GetRawTime();
 		String GetTime(Format mode = Format::Scientific); //Default to scientifc
 		unsigned long GetTimeUnix(); 
 		// float GetTemp();
