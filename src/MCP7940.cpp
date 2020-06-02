@@ -533,6 +533,22 @@ int MCP7940::ClearAlarm(bool AlarmVal) {  //Clear registers to stop alarm, must 
 }
 
 /**
+ * Read the value of the given alarm flags, which are set when the alarm is triggere d 
+ *
+ * @param bool, AlarmVal, determine which alarm to be set
+ * @return bool, the state of the alarm flag
+ */
+bool MCP7940::ReadAlarm(bool AlarmVal) {  //Clear registers to stop alarm, must call SetAlarm again to get it to turn on again
+	// Wire.beginTransmission(ADR);
+	// Wire.write(0x0F); //Write values to status reg
+	// Wire.write(0x00); //Clear all flags
+	// Wire.endTransmission(); //return result of begin, reading is optional
+	uint8_t RegOffset = BlockOffset; 
+	if(AlarmVal == 1) RegOffset = AlarmOffset + BlockOffset; //Set offset if using ALM1
+	return ReadBit(Regs::WeekDay + RegOffset, 3); //Read interrupt flag bit of the desired alarm register 
+}
+
+/**
  * Starts the crystal oscilator connected to the device (required to keep time)
  *
  * @return bool, state of oscilator at end of startup (1 = running, 0 = not running, error)

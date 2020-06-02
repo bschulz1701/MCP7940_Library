@@ -68,6 +68,7 @@ class MCP7940
 		int SetHourAlarm(unsigned int Offset, bool AlarmVal = 0); //Default to ALM0
 		int SetDayAlarm(unsigned int Offset, bool AlarmVal = 0); //Default to ALM0
 		int ClearAlarm(bool AlarmVal = 0); //Default to ALM0
+		bool ReadAlarm(bool AlarmVal = 0); //Default to ALM0
 
 		uint8_t ReadByte(int Reg); //DEBUG! Make private
 		
