@@ -195,6 +195,12 @@ String MCP7940::GetTime(Format mode)
 	Timestamp t = GetRawTime();
 	char str[32];
 
+	Time_Date[5] = t.sec; //FIX!
+	Time_Date[4] = t.min;
+	Time_Date[3] = t.hour;
+	Time_Date[2] = t.mday;
+	Time_Date[1] = t.month;
+	Time_Date[0] = t.year;
 	//Format raw results into appropriate string
 	switch (mode) {
 	case Format::Scientific: // Return in order Year, Month, Day, Hour, Minute, Second (Scientific Style)
@@ -305,10 +311,18 @@ int MCP7940::SetAlarm(unsigned int Delta, bool AlarmNum) //Set alarm from curren
 	//Currently can not set timer for more than 24 hours
 	// uint8_t AlarmMask = 0x08; //nibble for A1Mx values
 	// uint8_t DY = 0; //DY/DT value 
-	GetTime(MCP7940::Format::ISO_8601);
+	// GetTime(MCP7940::Format::ISO_8601);
+	Timestamp t = GetRawTime();
 
-	int AlarmTime[7] = {Time_Date[5], Time_Date[4], Time_Date[3], 0, Time_Date[2], Time_Date[1], Time_Date[0]};
-	int AlarmVal[7] = {Delta % 60, ((Delta - (Delta % 60))/60) % 60, ((Delta - (Delta % 3600))/3600) % 24, 0, ((Delta - (Delta % 86400))/86400), 0, 0};  //Remove unused elements?? FIX!
+	Time_Date[5] = t.sec; //FIX!
+	Time_Date[4] = t.min;
+	Time_Date[3] = t.hour;
+	Time_Date[2] = t.mday;
+	Time_Date[1] = t.month;
+	Time_Date[0] = t.year;
+
+	int AlarmTime[7] = {Time_Date[5], Time_Date[4], Time_Date[3], t.wday, Time_Date[2], Time_Date[1], Time_Date[0]};
+	int AlarmVal[7] = {Delta % 60, ((Delta - (Delta % 60))/60) % 60, ((Delta - (Delta % 3600))/3600) % 24, ((Delta - (Delta % 3600))/3600) % 24, ((Delta - (Delta % 86400))/86400), 0, 0};  //Remove unused elements?? FIX!
 	int CarryIn = 0; //Carry value
 	int CarryOut = 0; 
 	int MonthDay[13] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};  //Use??
@@ -347,18 +361,29 @@ int MCP7940::SetAlarm(unsigned int Delta, bool AlarmNum) //Set alarm from curren
 	AlarmTime[2] = (AlarmTime[2] + AlarmVal[2] + CarryIn) % 24;
 	CarryIn = CarryOut; //Copy over prevous carry
 
+	//Calc DoW
+	if(AlarmTime[3] + AlarmVal[3] + CarryIn >= 7) CarryOut = 1; //OUT OF RANGE??
+	else CarryOut = 0;
+	AlarmTime[3] = (AlarmTime[3] + AlarmVal[3] + CarryIn) % 7;
+	CarryIn = CarryOut; //Copy over prevous carry
+
 	//Calc days 
 	if(AlarmTime[4] + AlarmVal[4] + CarryIn > MonthDay[AlarmTime[5]]) CarryOut = 1;  //Carry out if result pushes you beyond current month 
 	else CarryOut = 0;
 	AlarmTime[4] = (AlarmTime[4] + AlarmVal[4] + CarryIn) % (MonthDay[AlarmTime[5]] + 1);
 	if(AlarmTime[4] == 0) AlarmTime[4] = 1; //FIX! Find more elegant way to do this
 
-	// int q = 5; 
+	// int q = 5; //DEBUG!
 	// for(int i = 0; i < 7; i++) { //DEBUG!
-	// 	Serial.print(Time_Date[q]); 
+	// 	if(i != 3) {
+	// 		Serial.print(Time_Date[q]); 
+	// 		q--;
+	// 	}
+	// 	if(i == 3) Serial.print(t.wday);
 	// 	Serial.print('\t');
 	// 	Serial.println(AlarmTime[i]);
-	// 	if(q != 2) q--; 
+	// 	// if(i != 3) q--; //Do no decrement for DoW
+	// 	// q--;
 	// }
 
 
