@@ -478,7 +478,7 @@ int MCP7940::SetMinuteAlarm(unsigned int Offset, bool AlarmVal) //Set alarm from
 	AlarmRegTemp = AlarmRegTemp & 0x8F; //Clear mask bits, match only seconds
 	WriteByte(Regs::WeekDay + RegOffset, AlarmRegTemp); //Write back config reg
 
-	uint8_t SecondsOffset = (Offset % 0x0A) | ((Offset/10) << 4); //Convert offset to BCD
+	uint8_t SecondsOffset = (Offset % 0x0A) | (uint8_t(floor(Offset/10)) << 4); //Convert offset to BCD
 	WriteByte(Regs::Seconds + RegOffset, SecondsOffset); //Write for alarm to trigger at offset period  
 	// SetBit(Control, 4 + AlarmVal); //Turn desired alarm (ALM0 or ALM1) back on
 	EnableAlarm(true, AlarmVal); //Re-enable alarm
@@ -505,8 +505,8 @@ int MCP7940::SetHourAlarm(unsigned int Offset, bool AlarmVal) //Set alarm from c
 	AlarmRegTemp = AlarmRegTemp | 0x10; //Set ALMxMSK0, match only minutes
 	WriteByte(Regs::WeekDay + RegOffset, AlarmRegTemp); //Write back config reg
 
-	uint8_t MinuteOffset = (Offset % 0x0A) | ((Offset/10) << 4); //Convert offset to BCD
-	WriteByte(Regs::Minutes, MinuteOffset); //Write for alarm to trigger at offset period  
+	uint8_t MinuteOffset = (Offset % 0x0A) | (uint8_t(floor(Offset/10)) << 4); //Convert offset to BCD
+	WriteByte(Regs::Minutes + RegOffset, MinuteOffset); //Write for alarm to trigger at offset period  
 	// SetBit(Control, 4 + AlarmVal); //Turn desired alarm (ALM0 or ALM1) back on
 	EnableAlarm(true, AlarmVal); //Re-enable alarm
 
@@ -532,8 +532,8 @@ int MCP7940::SetDayAlarm(unsigned int Offset, bool AlarmVal) //Set alarm from cu
 	AlarmRegTemp = AlarmRegTemp | 0x20; //Set ALMxMSK1, match only hours
 	WriteByte(Regs::WeekDay + RegOffset, AlarmRegTemp); //Write back config reg
 
-	uint8_t HourOffset = (Offset % 0x0A) | ((Offset/10) << 4); //Convert offset to BCD 
-	WriteByte(Regs::Hours, HourOffset); //Write for alarm to trigger at offset period  
+	uint8_t HourOffset = (Offset % 0x0A) | (uint8_t(floor(Offset/10)) << 4); //Convert offset to BCD 
+	WriteByte(Regs::Hours + RegOffset, HourOffset); //Write for alarm to trigger at offset period  
 	// SetBit(Control, 4 + AlarmVal); //Turn desired alarm (ALM0 or ALM1) back on
 	EnableAlarm(true, AlarmVal); //Re-Enable desired alarm
 
