@@ -44,6 +44,12 @@ class MCP7940
 			Stardate = 1701
 		};
 
+		enum class Mode: int
+		{
+			Normal = 0,
+			Inverted = 1
+		};
+
 		struct Timestamp {
 			uint16_t year;  // e.g. 2020
 			uint8_t  month; // 1-12
@@ -62,11 +68,13 @@ class MCP7940
 		String GetTime(Format mode = Format::Scientific); //Default to scientifc
 		unsigned long GetTimeUnix(); 
 		// float GetTemp();
+		int SetMode(Mode Val); 
 		int GetValue(int n);
-		int SetAlarm(unsigned int Seconds, bool AlarmVal = 0); //Default to ALM0
+		int SetAlarm(unsigned int Seconds, bool AlarmNum = 0); //Default to ALM0
 		int SetMinuteAlarm(unsigned int Offset, bool AlarmVal = 0); //Default to ALM0
 		int SetHourAlarm(unsigned int Offset, bool AlarmVal = 0); //Default to ALM0
 		int SetDayAlarm(unsigned int Offset, bool AlarmVal = 0); //Default to ALM0
+		int EnableAlarm(bool State = true, bool AlarmVal = 0); //Default to ALM0, enable
 		int ClearAlarm(bool AlarmVal = 0); //Default to ALM0
 		bool ReadAlarm(bool AlarmVal = 0); //Default to ALM0
 

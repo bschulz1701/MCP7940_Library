@@ -259,6 +259,19 @@ int MCP7940::GetValue(int n)	// n = 0:Year, 1:Month, 2:Day, 3:Hour, 4:Minute, 5:
 }
 
 /**
+ * Setup the output mode of the system, using normal or inverted polarity. See page 27 of MCP7940 (Table 5-10 and Table 5-9)
+ *
+ * @param Val, which selects either Normal or Inverted polarity
+ * @return int, the result of the I2C write 
+ */
+int MCP7940::SetMode(Mode Val) 
+{
+	if(Val == Mode::Normal) return ClearBit(Regs::WeekDay + BlockOffset, 7); //Clear bit 7 of reg 0x0D (will be mirrored by hardware in reg 0x14)
+	if(Val == Mode::Inverted) return SetBit(Regs::WeekDay + BlockOffset, 7); //Set bit 7 of reg 0x14 (will be mirrored by hardware in reg 0x14)
+	else return -1; //Return unknown input error 
+}
+
+/**
  * Set alarm for a given number of seconds from current time 
  *
  * @param Delta, how many seconds from now the alarm should be set for 
@@ -271,7 +284,8 @@ int MCP7940::SetAlarm(unsigned int Delta, bool AlarmNum) //Set alarm from curren
 	uint8_t RegOffset = BlockOffset; 
 	if(AlarmNum == 1) RegOffset = AlarmOffset + BlockOffset; //Set offset if using ALM1
 
-	ClearBit(Control, 4 + AlarmNum); //Turn off desired alarm bit (ALM0 or ALM1)
+	// ClearBit(Control, 4 + AlarmNum); //Turn off desired alarm bit (ALM0 or ALM1)
+	EnableAlarm(false, AlarmNum); //Disable desired alarm
 
 	// if(Seconds == 60) { //Will trigger every minute, on the minute 
 	// 	// uint8_t AlarmMask = 0x07; //nibble for A1Mx values
@@ -373,6 +387,9 @@ int MCP7940::SetAlarm(unsigned int Delta, bool AlarmNum) //Set alarm from curren
 	AlarmTime[4] = (AlarmTime[4] + AlarmVal[4] + CarryIn) % (MonthDay[AlarmTime[5]] + 1);
 	if(AlarmTime[4] == 0) AlarmTime[4] = 1; //FIX! Find more elegant way to do this
 
+	//Calc Months
+	AlarmTime[5] = (AlarmTime[5] + CarryOut) % 12; //If needed, push into next month, if this rolls over into the next year, simply roll over 
+
 	// int q = 5; //DEBUG!
 	// for(int i = 0; i < 7; i++) { //DEBUG!
 	// 	if(i != 3) {
@@ -388,7 +405,7 @@ int MCP7940::SetAlarm(unsigned int Delta, bool AlarmNum) //Set alarm from curren
 
 
 	//ADD FAILURE NOTIFICATION FOR OUT OF RANGE??
-	for(int i=0; i<=6;i++){
+	for(int i=0; i<=5;i++){
 		if(i == 3) {
 			uint8_t DoW_Temp = ReadByte(Regs::WeekDay + RegOffset); //Read in current value
 			DoW_Temp = DoW_Temp & 0xF8; //Clear lower 3 bits (day of week portion of register)
@@ -436,7 +453,8 @@ int MCP7940::SetAlarm(unsigned int Delta, bool AlarmNum) //Set alarm from curren
 	// }
 
 	//FIX! Should the alarm be turned on before status is cleared, or vise-versa??
-	SetBit(Control, 4 + AlarmNum); //Turn desired alarm (ALM0 or ALM1) back on 
+	// SetBit(Control, 4 + AlarmNum); //Turn desired alarm (ALM0 or ALM1) back on 
+	EnableAlarm(true, AlarmNum); //Re-enable alarm
 	ClearAlarm(AlarmNum); //Clear any existing alarm
 
 
@@ -454,14 +472,16 @@ int MCP7940::SetMinuteAlarm(unsigned int Offset, bool AlarmVal) //Set alarm from
 	uint8_t RegOffset = BlockOffset; 
 	if(AlarmVal == 1) RegOffset = AlarmOffset + BlockOffset; //Set offset if using ALM1
 
-	ClearBit(Control, 4 + AlarmVal); //Turn off desired alarm bit (ALM0 or ALM1)
+	// ClearBit(Control, 4 + AlarmVal); //Turn off desired alarm bit (ALM0 or ALM1)
+	EnableAlarm(false, AlarmVal); //Disable desired alarm
 	uint8_t AlarmRegTemp = ReadByte(Regs::WeekDay + RegOffset); //Read in week day alarm reg for other values in reg
 	AlarmRegTemp = AlarmRegTemp & 0x8F; //Clear mask bits, match only seconds
 	WriteByte(Regs::WeekDay + RegOffset, AlarmRegTemp); //Write back config reg
 
 	uint8_t SecondsOffset = (Offset % 0x0A) | ((Offset/10) << 4); //Convert offset to BCD
 	WriteByte(Regs::Seconds + RegOffset, SecondsOffset); //Write for alarm to trigger at offset period  
-	SetBit(Control, 4 + AlarmVal); //Turn desired alarm (ALM0 or ALM1) back on
+	// SetBit(Control, 4 + AlarmVal); //Turn desired alarm (ALM0 or ALM1) back on
+	EnableAlarm(true, AlarmVal); //Re-enable alarm
 
 	ClearAlarm(AlarmVal); //Clear specified alarm 
 }
@@ -478,7 +498,8 @@ int MCP7940::SetHourAlarm(unsigned int Offset, bool AlarmVal) //Set alarm from c
 	uint8_t RegOffset = BlockOffset; 
 	if(AlarmVal == 1) RegOffset = AlarmOffset + BlockOffset; //Set offset if using ALM1
 
-	ClearBit(Control, 4 + AlarmVal); //Turn off desired alarm bit (ALM0 or ALM1)
+	// ClearBit(Control, 4 + AlarmVal); //Turn off desired alarm bit (ALM0 or ALM1)
+	EnableAlarm(false, AlarmVal); //Disable desired alarm
 	uint8_t AlarmRegTemp = ReadByte(Regs::WeekDay + RegOffset); //Read in week day alarm reg for other values in reg
 	AlarmRegTemp = AlarmRegTemp & 0x8F; //Clear mask bits
 	AlarmRegTemp = AlarmRegTemp | 0x10; //Set ALMxMSK0, match only minutes
@@ -486,7 +507,8 @@ int MCP7940::SetHourAlarm(unsigned int Offset, bool AlarmVal) //Set alarm from c
 
 	uint8_t MinuteOffset = (Offset % 0x0A) | ((Offset/10) << 4); //Convert offset to BCD
 	WriteByte(Regs::Minutes, MinuteOffset); //Write for alarm to trigger at offset period  
-	SetBit(Control, 4 + AlarmVal); //Turn desired alarm (ALM0 or ALM1) back on
+	// SetBit(Control, 4 + AlarmVal); //Turn desired alarm (ALM0 or ALM1) back on
+	EnableAlarm(true, AlarmVal); //Re-enable alarm
 
 	ClearAlarm(AlarmVal); //Clear specified alarm 
 }
@@ -503,7 +525,8 @@ int MCP7940::SetDayAlarm(unsigned int Offset, bool AlarmVal) //Set alarm from cu
 	uint8_t RegOffset = BlockOffset; 
 	if(AlarmVal == 1) RegOffset = AlarmOffset + BlockOffset; //Set offset if using ALM1
 
-	ClearBit(Control, 4 + AlarmVal); //Turn off desired alarm bit (ALM0 or ALM1)
+	// ClearBit(Control, 4 + AlarmVal); //Turn off desired alarm bit (ALM0 or ALM1)
+	EnableAlarm(false, AlarmVal); //Disable desired alarm
 	uint8_t AlarmRegTemp = ReadByte(Regs::WeekDay + RegOffset); //Read in week day alarm reg for other values in reg
 	AlarmRegTemp = AlarmRegTemp & 0x8F; //Clear mask bits
 	AlarmRegTemp = AlarmRegTemp | 0x20; //Set ALMxMSK1, match only hours
@@ -511,7 +534,8 @@ int MCP7940::SetDayAlarm(unsigned int Offset, bool AlarmVal) //Set alarm from cu
 
 	uint8_t HourOffset = (Offset % 0x0A) | ((Offset/10) << 4); //Convert offset to BCD 
 	WriteByte(Regs::Hours, HourOffset); //Write for alarm to trigger at offset period  
-	SetBit(Control, 4 + AlarmVal); //Turn desired alarm (ALM0 or ALM1) back on
+	// SetBit(Control, 4 + AlarmVal); //Turn desired alarm (ALM0 or ALM1) back on
+	EnableAlarm(true, AlarmVal); //Re-Enable desired alarm
 
 	ClearAlarm(AlarmVal); //Clear specified alarm 
 }
@@ -530,6 +554,21 @@ int MCP7940::ClearAlarm(bool AlarmVal) {  //Clear registers to stop alarm, must 
 	uint8_t RegOffset = BlockOffset; 
 	if(AlarmVal == 1) RegOffset = AlarmOffset + BlockOffset; //Set offset if using ALM1
 	return ClearBit(Regs::WeekDay + RegOffset, 3); //Clear interrupt flag bit of the desired alarm register 
+}
+
+/**
+ * Turns on the desired alarm to allow them to generate interrupts 
+ *
+ * @param bool, State, if the alarm should be enabled or disabled (enables by default)
+ * @param bool, AlarmVal, determine which alarm to be set (alarm 0 by default)
+ * @return int, the I2C status value (if any error occours)
+ */
+int MCP7940::EnableAlarm(bool State, bool AlarmVal) {  //Clear registers to stop alarm, must call SetAlarm again to get it to turn on again
+	uint8_t RegOffset = BlockOffset; 
+	if(AlarmVal == 1) RegOffset = AlarmOffset + BlockOffset; //Set offset if using ALM1
+	if(State) return SetBit(Control, 4 + AlarmVal); //Set enable bit of desired alarm
+	else if(!State) return ClearBit(Control, 4 + AlarmVal); //Clear enable bit of desired alarm
+	else return -1; //Return on unknown input, should never occour 
 }
 
 /**
