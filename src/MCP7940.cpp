@@ -56,14 +56,17 @@ int MCP7940::Begin(void)
 	SetBit(Regs::WeekDay, 3); //Turn backup battery enable
 
 	bool OscError = StartOsc();
+	return OscError; //Return oscilator status
 	// Serial.print("Oscillator State:"); //DEBUG!
 	// Serial.println(OscError); //DEBUG! 
 	// Serial.print("Reg Sates:"); //DEBUG!
 	// Serial.print(ReadByte(Control), HEX); //DEBUG!
 	// Serial.print(","); //DEBUG!
-	// Serial.print(ReadByte(TimeRegs::Seconds), HEX); //DEBUG!
+	// // Serial.print(ReadByte(TimeRegs::Seconds), HEX); //DEBUG!
+	// Serial.print(ReadByte(0x0A), HEX); //DEBUG!
 	// Serial.print(","); //DEBUG!
-	// Serial.println(ReadByte(TimeRegs::WeekDay), HEX); //DEBUG!
+	// // Serial.println(ReadByte(TimeRegs::WeekDay), HEX); //DEBUG!
+	// Serial.println(ReadByte(0x0D), HEX); //DEBUG!
 }
 
 /**
@@ -388,7 +391,7 @@ int MCP7940::SetAlarm(unsigned int Delta, bool AlarmNum) //Set alarm from curren
 	if(AlarmTime[4] == 0) AlarmTime[4] = 1; //FIX! Find more elegant way to do this
 
 	//Calc Months
-	AlarmTime[5] = (AlarmTime[5] + CarryOut) % 12; //If needed, push into next month, if this rolls over into the next year, simply roll over 
+	AlarmTime[5] = (AlarmTime[5] + CarryOut) % 13; //If needed, push into next month, if this rolls over into the next year, simply roll over 
 
 	// int q = 5; //DEBUG!
 	// for(int i = 0; i < 7; i++) { //DEBUG!
