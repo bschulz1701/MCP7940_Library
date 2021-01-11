@@ -498,8 +498,8 @@ int MCP7940::SetMinuteAlarm(unsigned int Offset, bool AlarmVal) //Set alarm from
 	uint8_t SecondsOffset = (Offset % 0x0A) | (uint8_t(floor(Offset/10)) << 4); //Convert offset to BCD
 	WriteByte(Regs::Seconds + RegOffset, SecondsOffset); //Write for alarm to trigger at offset period  
 	// SetBit(Control, 4 + AlarmVal); //Turn desired alarm (ALM0 or ALM1) back on
-	int Error = EnableAlarm(true, AlarmNum); //Re-enable alarm
-	ClearAlarm(AlarmNum); //Clear any existing alarm
+	int Error = EnableAlarm(true, AlarmVal); //Re-enable alarm
+	ClearAlarm(AlarmVal); //Clear any existing alarm
 	return Error; //Return the error from enabling the alarm
 }
 
@@ -525,8 +525,8 @@ int MCP7940::SetHourAlarm(unsigned int Offset, bool AlarmVal) //Set alarm from c
 	uint8_t MinuteOffset = (Offset % 0x0A) | (uint8_t(floor(Offset/10)) << 4); //Convert offset to BCD
 	WriteByte(Regs::Minutes + RegOffset, MinuteOffset); //Write for alarm to trigger at offset period  
 	// SetBit(Control, 4 + AlarmVal); //Turn desired alarm (ALM0 or ALM1) back on
-	int Error = EnableAlarm(true, AlarmNum); //Re-enable alarm
-	ClearAlarm(AlarmNum); //Clear any existing alarm
+	int Error = EnableAlarm(true, AlarmVal); //Re-enable alarm
+	ClearAlarm(AlarmVal); //Clear any existing alarm
 	return Error; //Return the error from enabling the alarm
 }
 
@@ -552,8 +552,8 @@ int MCP7940::SetDayAlarm(unsigned int Offset, bool AlarmVal) //Set alarm from cu
 	uint8_t HourOffset = (Offset % 0x0A) | (uint8_t(floor(Offset/10)) << 4); //Convert offset to BCD 
 	WriteByte(Regs::Hours + RegOffset, HourOffset); //Write for alarm to trigger at offset period  
 	// SetBit(Control, 4 + AlarmVal); //Turn desired alarm (ALM0 or ALM1) back on
-	int Error = EnableAlarm(true, AlarmNum); //Re-enable alarm
-	ClearAlarm(AlarmNum); //Clear any existing alarm
+	int Error = EnableAlarm(true, AlarmVal); //Re-enable alarm
+	ClearAlarm(AlarmVal); //Clear any existing alarm
 	return Error; //Return the error from enabling the alarm
 }
 
