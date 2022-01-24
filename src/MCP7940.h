@@ -84,7 +84,7 @@ class MCP7940
 		};
 
 		MCP7940();
-		int Begin(void);
+		int Begin(bool UseExtOsc = false);
 		int SetTime(int Year, int Month, int Day, int DoW, int Hour, int Min, int Sec);
 		int SetTime(int Year, int Month, int Day, int Hour, int Min, int Sec);
 		Timestamp GetRawTime();

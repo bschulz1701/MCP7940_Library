@@ -44,7 +44,7 @@ MCP7940::MCP7940()
  *
  * @return the I2C status value (if any error occours) or if oscilator does not start properly 
  */
-int MCP7940::Begin(void)
+int MCP7940::Begin(bool UseExtOsc)
 {
 	Wire.begin();
 
@@ -55,8 +55,16 @@ int MCP7940::Begin(void)
 	// return Wire.endTransmission(); //return result of begin, reading is optional
 	SetBit(Regs::WeekDay, 3); //Turn backup battery enable
 
-	bool OscError = StartOsc();
-	return OscError; //Return oscilator status
+	if(!UseExtOsc) {
+		bool OscError = StartOsc();
+		return OscError; //Return oscilator status
+	}
+	else {
+		int Error = SetBit(Control, 3); //Turn on external oscilator input
+		if(Error == 0) return 1; //Return pass if I2C comunication is good, FIX??
+		else return 0; //Return fail if any other I2C error code 
+	}
+	
 	// Serial.print("Oscillator State:"); //DEBUG!
 	// Serial.println(OscError); //DEBUG! 
 	// Serial.print("Reg Sates:"); //DEBUG!
